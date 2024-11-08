@@ -1,4 +1,5 @@
-const {Client, iteratePaginatedAPI} = require("@notionhq/client")
+const {Client, iteratePaginatedAPI, LogLevel} = require("@notionhq/client")
+const axios = require('axios');
 require('dotenv').config()
 const notion = new Client({auth: process.env.NOTION_KEY})
 
@@ -16,11 +17,39 @@ const getBudgetTracker = async () => {
     }
 }
 
+// Get audio
+const getAudioOfWord = async (word) => {
+    if(word.split(/\s+/).length > 1) {
+        return null;
+    }
+    const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${word}`;
+
+    try {
+        const response = await axios.get(url);
+
+        // Iterate through the data
+        for (const item of response.data) {
+            for (const phonetic of item.phonetics) {
+                // Return the first available audio URL
+                if (phonetic.audio) {
+                    return phonetic.audio;
+                }
+            }
+        }
+
+        // If no audio found, return a message or null
+        return null;
+
+    } catch (error) {
+        console.error('Error fetching audio:', error);
+        return null;
+    }
+}
+
 const updateSyncAnkiStatus = async (pageId) => {
     try {
         await notion.pages.update({
-            page_id: pageId,
-            properties: {
+            page_id: pageId, properties: {
                 "Sync Anki": {
                     select: {
                         name: "Yes"
@@ -34,11 +63,19 @@ const updateSyncAnkiStatus = async (pageId) => {
     }
 }
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const formatingData = async (data, date) => {
     let result = [];
-    data.forEach((item) => {
+    for (const item of data) {
+        const isExist = await checkCardExists(item.question);
+        if (isExist) {
+            continue;
+        }
+        const audio = await getAudioOfWord(item.question);
         const question = {
-            "deckName": `Vocabulary::${date}`, "modelName": "AllInOne (kprim, mc, sc)", "fields": {
+            // "deckName": `Vocabulary::${date}`,
+            "deckName": `Vocabulary`, "modelName": "AllInOne (kprim, mc, sc)", "fields": {
                 "Question": item.question,
                 "Title": "What mean???",
                 "Qtype (0=kprim,1=mc,2=sc)": "2",
@@ -47,14 +84,18 @@ const formatingData = async (data, date) => {
                 "Q_3": item.options[2],
                 "Q_4": item.options[3],
                 "Answers": "1 0 0 0",
-            }
+                "Audio": audio ? `<audio controls=""> <source src="${audio}" type="audio/mp3"> Your browser does not support the audio element.</audio>` : "",
+            }, "tags": [date],
         }
         result.push(question);
-    });
+        console.log(`Getting audio for word: ${item.question}`);
+        console.log(`Audio URL: ${audio}`);
+        await sleep(500);
+    }
     return result;
 };
 
-async function addNoteToAnki(data, deckName) {
+async function addNotesToAnki(data, deckName) {
     const notes = await formatingData(data, deckName);
     const url = "http://localhost:8765";
 
@@ -71,6 +112,7 @@ async function addNoteToAnki(data, deckName) {
 
         const result = await response.json();
         if (result.error) {
+            console.log(result);
             console.error("Error:", result.error);
         } else {
             console.log(`Note added for ${deckName}:`, result.result);
@@ -81,22 +123,46 @@ async function addNoteToAnki(data, deckName) {
     }
 }
 
+const checkCardExists = async (word) => {
+    const query = `Question:"${word}"`;
+
+    try {
+        const response = await fetch("http://localhost:8765", {
+            method: "POST", headers: {
+                "Content-Type": "application/json"
+            }, body: JSON.stringify({
+                action: "findNotes", version: 6, params: {
+                    query: query
+                }
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+            console.error("Lỗi:", result.error);
+            return false;
+        }
+
+        // Kiểm tra nếu có bất kỳ ID thẻ nào được trả về
+        return !!(result.result && result.result.length > 0);
+    } catch (error) {
+        return false;
+    }
+}
+
 const createDeck = async (deckName) => {
     const data = {
-        action: "createDeck",
-        version: 6,
-        params: {
+        action: "createDeck", version: 6, params: {
             deck: `Vocabulary::${deckName}`
         }
     };
 
     try {
         const response = await fetch('http://localhost:8765', {
-            method: 'POST',
-            headers: {
+            method: 'POST', headers: {
                 'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
+            }, body: JSON.stringify(data)
         });
 
         const result = await response.json();
@@ -134,7 +200,7 @@ const createQuestion = (data) => {
             }
         }
         result.push(firstQuestion);
-        result.push(secondQuestion);
+        // result.push(secondQuestion);
     });
 
     return result;
@@ -165,21 +231,23 @@ function shuffle(array) {
         }
     })
 
+    const uniqueInput = Array.from(new Map(input.map(item => [item.word, item])).values());
+
     const listId = response.results.map((item) => {
         return item.id;
     })
 
-    const questions = createQuestion(input);
+    const questions = createQuestion(uniqueInput);
     shuffle(questions);
 
     const date = new Date();
     const deckName = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-    await createDeck(deckName);
-    const resultSync = await addNoteToAnki(questions, deckName);
+    // await createDeck(deckName);
+    const resultSync = await addNotesToAnki(questions, deckName);
     if (resultSync.error == null) {
         for (const id of listId) {
             await updateSyncAnkiStatus(id);
         }
     }
-})();
 
+})();
