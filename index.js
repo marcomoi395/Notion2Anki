@@ -18,33 +18,33 @@ const getBudgetTracker = async () => {
 }
 
 // Get audio
-const getAudioOfWord = async (word) => {
-    if(word.split(/\s+/).length > 1) {
-        return null;
-    }
-    const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${word}`;
-
-    try {
-        const response = await axios.get(url);
-
-        // Iterate through the data
-        for (const item of response.data) {
-            for (const phonetic of item.phonetics) {
-                // Return the first available audio URL
-                if (phonetic.audio) {
-                    return phonetic.audio;
-                }
-            }
-        }
-
-        // If no audio found, return a message or null
-        return null;
-
-    } catch (error) {
-        console.error('Error fetching audio:', error);
-        return null;
-    }
-}
+// const getAudioOfWord = async (word) => {
+//     if(word.split(/\s+/).length > 1) {
+//         return null;
+//     }
+//     const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${word}`;
+//
+//     try {
+//         const response = await axios.get(url);
+//
+//         // Iterate through the data
+//         for (const item of response.data) {
+//             for (const phonetic of item.phonetics) {
+//                 // Return the first available audio URL
+//                 if (phonetic.audio) {
+//                     return phonetic.audio;
+//                 }
+//             }
+//         }
+//
+//         // If no audio found, return a message or null
+//         return null;
+//
+//     } catch (error) {
+//         console.error('Error fetching audio:', error);
+//         return null;
+//     }
+// }
 
 const updateSyncAnkiStatus = async (pageId) => {
     try {
@@ -72,7 +72,7 @@ const formatingData = async (data, date) => {
         if (isExist) {
             continue;
         }
-        const audio = await getAudioOfWord(item.question);
+        // const audio = await getAudioOfWord(item.question);
         const question = {
             // "deckName": `Vocabulary::${date}`,
             "deckName": `Vocabulary`, "modelName": "AllInOne (kprim, mc, sc)", "fields": {
@@ -88,9 +88,9 @@ const formatingData = async (data, date) => {
             }, "tags": [date],
         }
         result.push(question);
-        console.log(`Getting audio for word: ${item.question}`);
-        console.log(`Audio URL: ${audio}`);
-        await sleep(500);
+        // console.log(`Getting audio for word: ${item.question}`);
+        // console.log(`Audio URL: ${audio}`);
+        // await sleep(500);
     }
     return result;
 };
@@ -249,5 +249,4 @@ function shuffle(array) {
             await updateSyncAnkiStatus(id);
         }
     }
-
 })();
