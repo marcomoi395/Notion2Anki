@@ -8,6 +8,8 @@ package-lock.json
 .docker/
 docker-compose.yml
 
+./audio
+
 # Logs
 logs
 *.log
