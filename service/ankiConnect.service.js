@@ -1,7 +1,17 @@
 const formatingData = require('../handlers/formatting');
 
-module.exports.addNotesToAnki = async (data, deckName) => {
-    const notes = await formatingData(data, deckName, 'Vocabulary', 'MuiltpleChoice');
+module.exports.addNotesToAnki = async (data, date) => {
+    const notes = await formatingData(data, date);
+
+    // Check exist deck
+    const decks = ['Multiple Choice', 'Eng-Vie', 'Vie-Eng'];
+    const getDecks = await getDeckNames();
+    for (const deck of decks) {
+        if (!getDecks.includes(deck)) {
+            await createDeck(deck);
+        }
+    }
+
     const url = "http://localhost:8765";
 
     try {
@@ -15,14 +25,7 @@ module.exports.addNotesToAnki = async (data, deckName) => {
             })
         });
 
-        const result = await response.json();
-        if (result.error) {
-            console.log(result);
-            console.error("Error:", result.error);
-        } else {
-            console.log(`Note added for ${deckName}:`, result.result);
-        }
-        return result;
+        return await response.json();
     } catch (error) {
         console.error("Error sending request:", error);
     }
@@ -42,12 +45,29 @@ const createDeck = async (deckName) => {
             }, body: JSON.stringify(data)
         });
 
-        const result = await response.json();
         // await delay(500);
-        return result;
+        return await response.json();
 
         // Delay 500 ms giữa các yêu cầu
     } catch (error) {
         console.error(`Error creating deck '${deckName}':`, error);
     }
 };
+
+const getDeckNames = async () => {
+    try {
+        const response = await fetch('http://localhost:8765', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                action: 'deckNames',
+                version: 6
+            })
+        });
+
+        const data = await response.json();
+        return data.result;
+    } catch (error) {
+        console.error("Failed to fetch deck names:", error.message);
+    }
+}

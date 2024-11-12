@@ -100,10 +100,12 @@ function shuffle(array) {
     const questions = createQuestion(uniqueInput);
     shuffle(questions);
 
-    const date = new Date();
-    const deckName = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-    // await createDeck(deckName);
-    const resultSync = await addNotesToAnki(questions, deckName);
+    console.log(questions);
+
+    let date = new Date();
+    date = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+    const resultSync = await addNotesToAnki(questions, date);
+    console.log(resultSync);
     if (resultSync.error == null) {
         for (const id of listId) {
             await updateSyncAnkiStatus(id);
